@@ -1,0 +1,27 @@
+# Python environments and generated files
+.venv/
+venv/
+bin/
+include/
+lib/
+pyvenv.cfg
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Local inspection data and third-party palettes
+*.nde
+*.h5
+*.hdf5
+*.pal
+
+# Explicitly authorized demo assets
+!EVDNT_Amplitude.pal
+!surface-cracks-eca-single-surf25-2026-07-13T04-54-27.nde
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*~

@@ -1,0 +1,78 @@
+name: Windows bundle
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      APP_NAME: NortecNDEViewer
+      SAMPLE_FILE: surface-cracks-eca-single-surf25-2026-07-13T04-54-27.nde
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-build.txt
+      - name: Run unit tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest discover -v
+      - name: Build Windows application
+        run: >-
+          python -m PyInstaller
+          --noconfirm
+          --clean
+          --windowed
+          --name $env:APP_NAME
+          --collect-all vispy
+          nde_viewer.py
+      - name: Add demo assets and documentation
+        shell: pwsh
+        run: |
+          $bundle = Join-Path "dist" $env:APP_NAME
+          Copy-Item "EVDNT_Amplitude.pal" $bundle
+          Copy-Item $env:SAMPLE_FILE $bundle
+          Copy-Item "README.md" $bundle
+          Copy-Item "SAMPLE_DATA.md" $bundle
+          Copy-Item "LICENSE" $bundle
+      - name: Smoke-test packaged executable
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $executable = Join-Path "dist" "$env:APP_NAME\$env:APP_NAME.exe"
+          $sample = Join-Path "dist" "$env:APP_NAME\$env:SAMPLE_FILE"
+          $process = Start-Process -FilePath $executable -ArgumentList "--smoke-test", $sample -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Packaged smoke test failed with exit code $($process.ExitCode)."
+          }
+      - name: Create ZIP archive
+        shell: pwsh
+        run: Compress-Archive -Path "dist\$env:APP_NAME" -DestinationPath "$env:APP_NAME-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NortecNDEViewer-windows-x64
+          path: NortecNDEViewer-windows-x64.zip
+          retention-days: 30
+          if-no-files-found: error
+      - name: Attach bundle to tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${{ github.ref_name }}"
+          "NortecNDEViewer-windows-x64.zip"
+          --generate-notes
+          --title "NORTEC 700 NDE Viewer ${{ github.ref_name }}"
